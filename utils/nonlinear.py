@@ -1,0 +1,66 @@
+from sklearn.metrics import r2_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline, Pipeline
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.svm import SVR
+from sklearn.linear_model import ElasticNet, LinearRegression
+from xgboost import XGBRegressor
+
+# Train and test the given nonlinear model
+def train_and_evaluate(X_train, X_test, y_train, y_test, model, grid_search):
+  # Fit the model
+  grid_search.fit(X_train, y_train)
+
+  # Predict with the best hyperparameters
+  best_model = grid_search.best_estimator_
+  y_pred = best_model.predict(X_test)
+
+  # Evaluate the model with R2
+  r2 = r2_score(y_test, y_pred)
+  print(f"\n{model} Test Performance:")
+  print("Best R² Score:", round(r2, 4))
+  print("Best Parameters:", grid_search.best_params_)
+
+  return best_model
+
+# Polynomial regression (degree 2)
+def polynomial_regression(X_train, X_test, y_train, y_test, degree=2):
+    poly_model = make_pipeline(
+        PolynomialFeatures(degree=degree, include_bias=False),
+        LinearRegression()
+    )
+    poly_model.fit(X_train, y_train)
+    y_pred = poly_model.predict(X_test)
+    poly_r2 = r2_score(y_test, y_pred)
+    print(f"Polynomial Regression (deg {degree}) R²: {poly_r2:.4f}")
+    return poly_model
+
+# Random Forest
+def random_forest(X_train, X_test, y_train, y_test, rf_params):
+    rf_model = RandomForestRegressor(random_state=42)
+    rf_grid = GridSearchCV(rf_model, rf_params, scoring='r2', cv=5, n_jobs=-1)
+    return train_and_evaluate(X_train, X_test, y_train, y_test, 'Random Forest', rf_grid)
+
+# SVR
+def svr(X_train, X_test, y_train, y_test, svr_params):
+    svr_pipeline = Pipeline([('scaler', StandardScaler()), ('svr', SVR())])
+    svr_grid = GridSearchCV(svr_pipeline, svr_params, scoring='r2', cv=5, n_jobs=-1)
+    return train_and_evaluate(X_train, X_test, y_train, y_test, 'SVR', svr_grid)
+
+# Elastic Net
+def elastic_net(X_train, X_test, y_train, y_test, en_params):
+    en_pipeline = Pipeline([
+        ('poly', PolynomialFeatures()),
+        ('scaler', StandardScaler()),
+        ('elastic', ElasticNet(max_iter=5000))
+    ])
+    en_grid = GridSearchCV(en_pipeline, en_params, scoring='r2', cv=5, n_jobs=-1)
+    return train_and_evaluate(X_train, X_test, y_train, y_test, 'Elastic Net', en_grid)
+
+# XGBoost
+def xgb(X_train, X_test, y_train, y_test, xgb_params):
+    xgb_model = XGBRegressor(objective='reg:squarederror', random_state=42)
+    xgb_grid = GridSearchCV(xgb_model, xgb_params, scoring='r2', cv=5, n_jobs=-1)
+    return train_and_evaluate(X_train, X_test, y_train, y_test, 'XGBoost', xgb_grid)
