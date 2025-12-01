@@ -132,7 +132,7 @@ class CNN_trainer:
         self.train_loss = tf.keras.metrics.Mean()
         self.train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
         
-    # Apply random augmentations to a single image
+    # NOTE: Apply random augmentations
     def augment_image(self, image):
         # Random horizontal flip
         if np.random.rand() > 0.5:
