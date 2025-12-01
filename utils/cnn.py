@@ -1,0 +1,293 @@
+#!/usr/bin/env/ python
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import Model, regularizers
+from tensorflow.keras.layers import Input, Conv2D, BatchNormalization, ReLU, MaxPooling2D, Dropout, Flatten, Dense
+from scipy.ndimage import rotate
+
+# Enable dynamic GPU memory allocation
+try:
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+except Exception:
+    pass    # Continue with CPU if no GPU is available
+
+class CNN_trainer:
+    """
+    Key implementations:
+        1. Data augmentation to increase training data diversity
+        2. Early stopping with patience=5 to prevent overfitting
+        3. Cosine annealing learning rate schedule for smooth convergence
+    
+    References: 
+        1. https://apxml.com/courses/cnns-for-computer-vision/chapter-2-advanced-training-optimization/learning-rate-schedules
+        2. https://www.tensorflow.org/api_docs/python/tf/keras/optimizers/schedules/CosineDecay
+    """
+    def __init__(self, X_t, y_t, X_v, y_v, epochs=40, batch_size=64, lr=5e-4, l2=1e-5, dropout=0.3):
+        """
+        X_t: Training images
+        y_t: Training labels
+        X_v: Validation images
+        y_v: Validation labels
+        epochs: Number of training epochs
+        batch_size: Batch size for training
+        lr: Initial learning rate
+        l2: L2 regularization coefficient
+        dropout: Dropout rate for regularization
+        """
+        # Store data
+        self.X_t = X_t
+        self.y_t = y_t
+        self.X_v = X_v
+        self.y_v = y_v
+        
+        # Store hyperparameters
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.lr = lr
+        self.initial_lr = lr
+        self.l2 = l2
+        self.dropout = dropout
+    
+    # Initialize model
+    def init_model(self):
+        """
+        Model architecture:
+            1. Referred to the classic LeNet structure for the overall workflow
+            2. Used 4 convolutional blocks with BatchNorm and Dropout
+            3. Doubled filter counts across blocks to enable hiearchical feature learning
+            4. Added L2 regularization to penalize large weights and prevent overfitting
+            5. Removed bias terms in Conv2D/Dense layers since BN includes a bias term
+            6. Applied MaxPooling to capture strongest feature activations
+        """
+        reg = regularizers.l2(self.l2)
+        
+        inputs = Input(shape=self.X_t.shape[1:])
+        x = inputs
+        
+        # Block 1: 32 filters (initial feature extraction)
+        x = Conv2D(32, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Conv2D(32, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = MaxPooling2D(2)(x)
+        x = Dropout(0.25)(x)
+        
+        # Block 2: 64 filters (mid-level features)
+        x = Conv2D(64, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Conv2D(64, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = MaxPooling2D(2)(x)
+        x = Dropout(0.25)(x)
+        
+        # Block 3: 128 filters (high-level features)
+        x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = MaxPooling2D(2)(x)
+        x = Dropout(0.25)(x)
+        
+        # Block 4: 256 filters (object-level features)
+        x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = MaxPooling2D(2)(x)
+        x = Dropout(0.25)(x)
+        
+        # Dense layers
+        x = Flatten()(x)
+        
+        x = Dense(256, use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Dropout(0.5)(x)
+        
+        x = Dense(128, use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Dropout(0.5)(x)
+        
+        outputs = Dense(5, activation="softmax")(x)
+        
+        self.model = Model(inputs=inputs, outputs=outputs)
+    
+    # Initialize optimizer
+    def init_optimizer(self):
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        
+    # Initialize training metrics
+    def init_metrics(self):
+        self.train_loss = tf.keras.metrics.Mean()
+        self.train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+        
+    # Apply random augmentations to a single image
+    def augment_image(self, image):
+        # Random horizontal flip
+        if np.random.rand() > 0.5:
+            image = np.flip(image, axis=1)
+        
+        # Random rotation
+        if np.random.rand() > 0.5:
+            angle = np.random.uniform(-15, 15)
+            image = rotate(image, angle, reshape=False, order=1, mode='nearest')
+            
+        # Random brightness adjustment
+        if np.random.rand() > 0.5:
+            image += np.random.uniform(-0.2, 0.2)
+            
+        # Random contrast adjustment to handle different lighting conditions
+        if np.random.rand() > 0.5:
+            factor = np.random.uniform(0.8, 1.2)
+            mean = image.mean()
+            image = (image - mean) * factor + mean
+        
+        # Clip values to valid range [0, 1]
+        return np.clip(image, 0, 1)
+    
+    # Compile training step into a static computation graph for speed improvement
+    @tf.function
+    def train_step(self, x, y):
+        with tf.GradientTape() as tape:
+            # Forward pass
+            predictions = self.model(x, training=True)
+            
+            # Compute cross-entropy loss
+            loss = tf.keras.losses.sparse_categorical_crossentropy(y, predictions)
+            loss = tf.reduce_mean(loss)
+            
+            # Add L2 regularization losses from model layers
+            if self.model.losses:
+                loss += tf.add_n(self.model.losses)
+        
+        # Compute and apply gradients
+        gradients = tape.gradient(loss, self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
+        
+        # Update metrics
+        self.train_loss.update_state(loss)
+        self.train_accuracy.update_state(y, predictions)
+        
+        return loss
+    
+    # Train for one complete epoch
+    def train_epoch(self, epoch):
+        self.train_loss.reset_states()
+        self.train_accuracy.reset_states()
+        
+        # Shuffle training data
+        train_idx = np.random.permutation(len(self.X_t))
+        
+        # Compute number of batches
+        num_batches = (len(self.X_t) + self.batch_size - 1) // self.batch_size
+        
+        # Iterate over all batches
+        for i in range(num_batches):
+            # Get batch indices
+            start_idx = i * self.batch_size
+            end_idx = min(start_idx + self.batch_size, len(self.X_t))
+            batch_idx = train_idx[start_idx:end_idx]
+            
+            # Normalize to [0, 1]
+            x_batch = self.X_t[batch_idx].astype(np.float32) / 255.0
+            y_batch = self.y_t[batch_idx]
+            
+            # Apply augmentation to each image in batch
+            x_batch = np.array([self.augment_image(img) for img in x_batch])
+            
+            # Perform training step
+            self.train_step(x_batch, y_batch)
+            
+            # Print progress every 10 batches and at end
+            if (i + 1) % 10 == 0 or (i + 1) == num_batches:
+                print(f"\r{i+1}/{num_batches} - loss: {self.train_loss.result():.4f} - "
+                      f"accuracy: {self.train_accuracy.result():.4f}", end='', flush=True)        
+    
+    # Perform validation
+    def validate(self, X_v):
+        # Initialize validation metrics
+        val_loss = tf.keras.metrics.Mean()
+        val_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+        
+        # Compute number of batches
+        num_batches = (len(X_v) + self.batch_size - 1) // self.batch_size
+        
+        # Iterate over all batches
+        for i in range(num_batches):
+            # Get batch indices
+            start_idx = i * self.batch_size
+            end_idx = min(start_idx + self.batch_size, len(X_v))
+            
+            x_batch = X_v[start_idx:end_idx]
+            y_batch = self.y_v[start_idx:end_idx]
+            
+            # Forward pass
+            predictions = self.model(x_batch, training=False)
+            loss = tf.keras.losses.sparse_categorical_crossentropy(y_batch, predictions)
+            loss = tf.reduce_mean(loss)
+            
+            val_loss.update_state(loss)
+            val_accuracy.update_state(y_batch, predictions)
+        
+        return val_loss.result().numpy(), val_accuracy.result().numpy()
+    
+    # Update learning rate using cosine annealing schedule
+    def update_learning_rate(self, epoch):        
+        cosine_decay = 0.5 * (1 + np.cos(np.pi * epoch / self.epochs))
+        new_lr = self.initial_lr * cosine_decay
+        self.optimizer.learning_rate.assign(new_lr)
+        print(f"Learning rate: {new_lr:.6f}")
+    
+    # Start training with early stopping
+    def run(self):
+        self.init_model()
+        self.init_optimizer()
+        self.init_metrics()
+        
+        # Normalize validation data
+        X_v_normalized = self.X_v.astype(np.float32) / 255.0
+        
+        # Store the best validation accuracy for early stopping
+        best_val_accuracy = 0.0
+        # Define counter for consecutive epochs without improvement
+        patience_counter = 0
+        
+        for epoch in range(self.epochs):
+            print(f"\nTraining Epoch {epoch + 1}/{self.epochs}")
+            self.train_epoch(epoch)
+            
+            # Validate
+            val_loss, val_accuracy = self.validate(X_v_normalized)
+            print(f" - val_loss: {val_loss:.4f} - val_accuracy: {val_accuracy:.4f}")
+            
+            # Update learning rate
+            self.update_learning_rate(epoch)
+            
+            # Update the best validation accuracy and reset patience (if applicable)
+            if val_accuracy > best_val_accuracy:
+                best_val_accuracy = val_accuracy
+                patience_counter = 0
+                print(f"Validation accuracy improved to {val_accuracy:4f}")
+                self.model.save_weights('best_model_weights.h5')
+                print(f"Updated the best model")
+            # Allow up to 5 consecutive non-improving epochs before stopping
+            else:
+                patience_counter += 1
+                print(f"No improvement (patience: {patience_counter}/5)")
+                if patience_counter >= 5:
+                    print("Early stopping triggered")
+                    self.model.load_weights('best_model_weights.h5')
+                    break
+                
+        print(f"\nTraining complete (Best validation accuracy: {best_val_accuracy:.4f})")
