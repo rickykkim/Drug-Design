@@ -1,6 +1,7 @@
 #!/usr/bin/env/ python
 import numpy as np
 import tensorflow as tf
+import tensorflow_addons as tfa
 from tensorflow.keras import Model, regularizers
 from tensorflow.keras.layers import Input, Conv2D, BatchNormalization, ReLU, MaxPooling2D, Dropout, Flatten, Dense
 from scipy.ndimage import rotate
@@ -24,7 +25,7 @@ class CNN_trainer:
         1. https://apxml.com/courses/cnns-for-computer-vision/chapter-2-advanced-training-optimization/learning-rate-schedules
         2. https://www.tensorflow.org/api_docs/python/tf/keras/optimizers/schedules/CosineDecay
     """
-    def __init__(self, X_t, y_t, X_v, y_v, epochs=40, batch_size=64, lr=5e-4, l2=1e-5, dropout=0.3):
+    def __init__(self, X_t, y_t, X_v, y_v, epochs=100, batch_size=128, lr=5e-4, l2=1e-5, dropout=0.3):
         """
         X_t: Training images
         y_t: Training labels
@@ -67,59 +68,59 @@ class CNN_trainer:
         x = inputs
         
         # Block 1: 32 filters (initial feature extraction)
-        x = Conv2D(32, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv2D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = Conv2D(32, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv2D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
         x = MaxPooling2D(2)(x)
-        x = Dropout(0.25)(x)
+        x = Dropout(0.3)(x)
         
         # Block 2: 64 filters (mid-level features)
-        x = Conv2D(64, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv2D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = Conv2D(64, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv2D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
         x = MaxPooling2D(2)(x)
-        x = Dropout(0.25)(x)
+        x = Dropout(0.3)(x)
         
-        # Block 3: 128 filters (high-level features)
-        x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
-        x = ReLU()(x)
-        x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
-        x = ReLU()(x)
-        x = MaxPooling2D(2)(x)
-        x = Dropout(0.25)(x)
+#         # Block 3: 128 filters (high-level features)
+#         x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = BatchNormalization()(x)
+#         x = ReLU()(x)
+#         x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = BatchNormalization()(x)
+#         x = ReLU()(x)
+#         x = MaxPooling2D(2)(x)
+#         x = Dropout(0.3)(x)
         
-        # Block 4: 256 filters (object-level features)
-        x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
-        x = ReLU()(x)
-        x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
-        x = ReLU()(x)
-        x = MaxPooling2D(2)(x)
-        x = Dropout(0.25)(x)
+#         # Block 4: 256 filters (object-level features)
+#         x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = BatchNormalization()(x)
+#         x = ReLU()(x)
+#         x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = BatchNormalization()(x)
+#         x = ReLU()(x)
+#         x = MaxPooling2D(2)(x)
+#         x = Dropout(0.3)(x)
         
         # Dense layers
         x = Flatten()(x)
         
-        x = Dense(256, use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
+        x = Dense(64, use_bias=False, kernel_regularizer=reg)(x)
+#         x = BatchNormalization()(x)
         x = ReLU()(x)
         x = Dropout(0.5)(x)
         
-        x = Dense(128, use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
+        x = Dense(32, use_bias=False, kernel_regularizer=reg)(x)
+#         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = Dropout(0.5)(x)
+#         x = Dropout(0.5)(x)
         
-        outputs = Dense(5, activation="softmax")(x)
+        outputs = Dense(2, activation="softmax")(x)
         
         self.model = Model(inputs=inputs, outputs=outputs)
     
@@ -133,28 +134,14 @@ class CNN_trainer:
         self.train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
         
     # NOTE: Apply random augmentations
-    def augment_image(self, image):
-        # Random horizontal flip
-        if np.random.rand() > 0.5:
-            image = np.flip(image, axis=1)
-        
-        # Random rotation
-        if np.random.rand() > 0.5:
-            angle = np.random.uniform(-15, 15)
-            image = rotate(image, angle, reshape=False, order=1, mode='nearest')
-            
-        # Random brightness adjustment
-        if np.random.rand() > 0.5:
-            image += np.random.uniform(-0.2, 0.2)
-            
-        # Random contrast adjustment to handle different lighting conditions
-        if np.random.rand() > 0.5:
-            factor = np.random.uniform(0.8, 1.2)
-            mean = image.mean()
-            image = (image - mean) * factor + mean
-        
-        # Clip values to valid range [0, 1]
-        return np.clip(image, 0, 1)
+    def augment_data(self, x):
+    """
+    Inject Gaussian noise: x' = x + noise
+    """
+    noise = np.random.normal(loc=0.0, scale=0.03, size=x.shape) 
+    x_aug = x + noise
+    
+    return x_aug
     
     # Compile training step into a static computation graph for speed improvement
     @tf.function
@@ -204,7 +191,7 @@ class CNN_trainer:
             y_batch = self.y_t[batch_idx]
             
             # Apply augmentation to each image in batch
-            x_batch = np.array([self.augment_image(img) for img in x_batch])
+            x_batch = np.array([self.augment_data(img) for img in x_batch])
             
             # Perform training step
             self.train_step(x_batch, y_batch)
