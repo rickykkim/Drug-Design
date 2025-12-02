@@ -1,9 +1,8 @@
 #!/usr/bin/env/ python
 import numpy as np
 import tensorflow as tf
-import tensorflow_addons as tfa
 from tensorflow.keras import Model, regularizers
-from tensorflow.keras.layers import Input, Conv2D, BatchNormalization, ReLU, MaxPooling2D, Dropout, Flatten, Dense
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, ReLU, MaxPooling1D, Dropout, Flatten, Dense
 from scipy.ndimage import rotate
 
 # Enable dynamic GPU memory allocation
@@ -59,7 +58,7 @@ class CNN_trainer:
             2. Used 4 convolutional blocks with BatchNorm and Dropout
             3. Doubled filter counts across blocks to enable hiearchical feature learning
             4. Added L2 regularization to penalize large weights and prevent overfitting
-            5. Removed bias terms in Conv2D/Dense layers since BN includes a bias term
+            5. Removed bias terms in Conv1D/Dense layers since BN includes a bias term
             6. Applied MaxPooling to capture strongest feature activations
         """
         reg = regularizers.l2(self.l2)
@@ -68,43 +67,43 @@ class CNN_trainer:
         x = inputs
         
         # Block 1: 32 filters (initial feature extraction)
-        x = Conv2D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv1D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = Conv2D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv1D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = MaxPooling2D(2)(x)
+        x = MaxPooling1D(2)(x)
         x = Dropout(0.3)(x)
         
         # Block 2: 64 filters (mid-level features)
-        x = Conv2D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv1D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = Conv2D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = Conv1D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = MaxPooling2D(2)(x)
+        x = MaxPooling1D(2)(x)
         x = Dropout(0.3)(x)
         
 #         # Block 3: 128 filters (high-level features)
-#         x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
 #         x = BatchNormalization()(x)
 #         x = ReLU()(x)
-#         x = Conv2D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
 #         x = BatchNormalization()(x)
 #         x = ReLU()(x)
-#         x = MaxPooling2D(2)(x)
+#         x = MaxPooling1D(2)(x)
 #         x = Dropout(0.3)(x)
         
 #         # Block 4: 256 filters (object-level features)
-#         x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
 #         x = BatchNormalization()(x)
 #         x = ReLU()(x)
-#         x = Conv2D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+#         x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
 #         x = BatchNormalization()(x)
 #         x = ReLU()(x)
-#         x = MaxPooling2D(2)(x)
+#         x = MaxPooling1D(2)(x)
 #         x = Dropout(0.3)(x)
         
         # Dense layers
@@ -120,7 +119,7 @@ class CNN_trainer:
         x = ReLU()(x)
 #         x = Dropout(0.5)(x)
         
-        outputs = Dense(2, activation="softmax")(x)
+        outputs = Dense(2, activation="linear")(x)
         
         self.model = Model(inputs=inputs, outputs=outputs)
     
@@ -131,17 +130,17 @@ class CNN_trainer:
     # Initialize training metrics
     def init_metrics(self):
         self.train_loss = tf.keras.metrics.Mean()
-        self.train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+        self.train_mae = tf.keras.metrics.MeanAbsoluteError()
         
     # NOTE: Apply random augmentations
     def augment_data(self, x):
-    """
-    Inject Gaussian noise: x' = x + noise
-    """
-    noise = np.random.normal(loc=0.0, scale=0.03, size=x.shape) 
-    x_aug = x + noise
-    
-    return x_aug
+        """
+        Inject Gaussian noise: x' = x + noise
+        """
+        noise = np.random.normal(loc=0.0, scale=0.03, size=x.shape) 
+        x_aug = x + noise
+
+        return x_aug
     
     # Compile training step into a static computation graph for speed improvement
     @tf.function
@@ -151,7 +150,8 @@ class CNN_trainer:
             predictions = self.model(x, training=True)
             
             # Compute cross-entropy loss
-            loss = tf.keras.losses.sparse_categorical_crossentropy(y, predictions)
+            loss_fn = tf.keras.losses.MeanSquaredError()
+            loss = loss_fn(y, predictions)
             loss = tf.reduce_mean(loss)
             
             # Add L2 regularization losses from model layers
@@ -164,14 +164,14 @@ class CNN_trainer:
         
         # Update metrics
         self.train_loss.update_state(loss)
-        self.train_accuracy.update_state(y, predictions)
+        self.train_mae.update_state(y, predictions)
         
         return loss
     
     # Train for one complete epoch
     def train_epoch(self, epoch):
         self.train_loss.reset_states()
-        self.train_accuracy.reset_states()
+        self.train_mae.reset_states()
         
         # Shuffle training data
         train_idx = np.random.permutation(len(self.X_t))
@@ -186,8 +186,7 @@ class CNN_trainer:
             end_idx = min(start_idx + self.batch_size, len(self.X_t))
             batch_idx = train_idx[start_idx:end_idx]
             
-            # Normalize to [0, 1]
-            x_batch = self.X_t[batch_idx].astype(np.float32) / 255.0
+            x_batch = self.X_t[batch_idx].astype(np.float32)
             y_batch = self.y_t[batch_idx]
             
             # Apply augmentation to each image in batch
@@ -199,14 +198,14 @@ class CNN_trainer:
             # Print progress every 10 batches and at end
             if (i + 1) % 10 == 0 or (i + 1) == num_batches:
                 print(f"\r{i+1}/{num_batches} - loss: {self.train_loss.result():.4f} - "
-                      f"accuracy: {self.train_accuracy.result():.4f}", end='', flush=True)        
+                      f"MAE: {self.train_mae.result():.4f}", end='', flush=True) 
     
     # Perform validation
     def validate(self, X_v):
         # Initialize validation metrics
         val_loss = tf.keras.metrics.Mean()
-        val_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
-        
+        val_mae = tf.keras.metrics.MeanAbsoluteError()
+   
         # Compute number of batches
         num_batches = (len(X_v) + self.batch_size - 1) // self.batch_size
         
@@ -221,13 +220,12 @@ class CNN_trainer:
             
             # Forward pass
             predictions = self.model(x_batch, training=False)
-            loss = tf.keras.losses.sparse_categorical_crossentropy(y_batch, predictions)
-            loss = tf.reduce_mean(loss)
-            
+            loss = tf.reduce_mean(tf.keras.losses.MSE(y_batch, predictions))
+
             val_loss.update_state(loss)
-            val_accuracy.update_state(y_batch, predictions)
+            val_mae.update_state(y_batch, predictions)
         
-        return val_loss.result().numpy(), val_accuracy.result().numpy()
+        return val_loss.result().numpy(), val_mae.result().numpy()
     
     # Update learning rate using cosine annealing schedule
     def update_learning_rate(self, epoch):        
@@ -243,10 +241,11 @@ class CNN_trainer:
         self.init_metrics()
         
         # Normalize validation data
-        X_v_normalized = self.X_v.astype(np.float32) / 255.0
+        X_v_normalized = self.X_v.astype(np.float32) 
         
         # Store the best validation accuracy for early stopping
-        best_val_accuracy = 0.0
+#         best_val_accuracy = 0.0
+        best_val_accuracy = float('inf')
         # Define counter for consecutive epochs without improvement
         patience_counter = 0
         
@@ -262,7 +261,7 @@ class CNN_trainer:
             self.update_learning_rate(epoch)
             
             # Update the best validation accuracy and reset patience (if applicable)
-            if val_accuracy > best_val_accuracy:
+            if val_accuracy < best_val_accuracy:
                 best_val_accuracy = val_accuracy
                 patience_counter = 0
                 print(f"Validation accuracy improved to {val_accuracy:4f}")
