@@ -1,9 +1,8 @@
-#!/usr/bin/env/ python
+#!/usr/bin/env/ python3
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model, regularizers
-from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, ReLU, MaxPooling1D, Dropout, Flatten, Dense
-from scipy.ndimage import rotate
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, ReLU, MaxPooling1D, Dropout, Flatten, Dense, GlobalAveragePooling1D
 
 # Enable dynamic GPU memory allocation
 try:
@@ -16,7 +15,7 @@ except Exception:
 class CNN_trainer:
     """
     Key implementations:
-        1. Data augmentation to increase training data diversity
+        1. Data augmentation tailored for time-series (additive Gaussian noise)
         2. Early stopping with patience=5 to prevent overfitting
         3. Cosine annealing learning rate schedule for smooth convergence
     
@@ -26,9 +25,9 @@ class CNN_trainer:
     """
     def __init__(self, X_t, y_t, X_v, y_v, epochs=100, batch_size=128, lr=5e-4, l2=1e-5, dropout=0.3):
         """
-        X_t: Training images
+        X_t: Training time-series
         y_t: Training labels
-        X_v: Validation images
+        X_v: Validation time-series
         y_v: Validation labels
         epochs: Number of training epochs
         batch_size: Batch size for training
@@ -49,17 +48,20 @@ class CNN_trainer:
         self.initial_lr = lr
         self.l2 = l2
         self.dropout = dropout
+        
+        std = float(np.std(self.X_t))
+        self.aug_noise_std = 0.05 * std if std > 0 else 0.0
     
     # Initialize model
     def init_model(self):
         """
-        Model architecture:
+        Model architecture for 1D multivariate time-series:
             1. Referred to the classic LeNet structure for the overall workflow
             2. Used 4 convolutional blocks with BatchNorm and Dropout
             3. Doubled filter counts across blocks to enable hiearchical feature learning
             4. Added L2 regularization to penalize large weights and prevent overfitting
             5. Removed bias terms in Conv1D/Dense layers since BN includes a bias term
-            6. Applied MaxPooling to capture strongest feature activations
+            6. Applied MaxPooling to capture strongest temporal feature activations
         """
         reg = regularizers.l2(self.l2)
         
@@ -86,38 +88,36 @@ class CNN_trainer:
         x = MaxPooling1D(2)(x)
         x = Dropout(0.3)(x)
         
-#         # Block 3: 128 filters (high-level features)
-#         x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-#         x = BatchNormalization()(x)
-#         x = ReLU()(x)
-#         x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-#         x = BatchNormalization()(x)
-#         x = ReLU()(x)
-#         x = MaxPooling1D(2)(x)
-#         x = Dropout(0.3)(x)
+        # Block 3: 128 filters (high-level features)
+        # x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        # x = BatchNormalization()(x)
+        # x = ReLU()(x)
+        # x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        # x = BatchNormalization()(x)
+        # x = ReLU()(x)
+        # x = MaxPooling1D(2)(x)
+        # x = Dropout(0.3)(x)
         
-#         # Block 4: 256 filters (object-level features)
-#         x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-#         x = BatchNormalization()(x)
-#         x = ReLU()(x)
-#         x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-#         x = BatchNormalization()(x)
-#         x = ReLU()(x)
-#         x = MaxPooling1D(2)(x)
-#         x = Dropout(0.3)(x)
+        # Block 4: 256 filters (object-level features)
+        # x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        # x = BatchNormalization()(x)
+        # x = ReLU()(x)
+        # x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        # x = BatchNormalization()(x)
+        # x = ReLU()(x)
+        # x = MaxPooling1D(2)(x)
+        # x = Dropout(0.3)(x)
         
-        # Dense layers
-        x = Flatten()(x)
+        # Dense layers: global pooling reduces sequence length to a compact representation
+        x = GlobalAveragePooling1D()(x)
         
         x = Dense(64, use_bias=False, kernel_regularizer=reg)(x)
-#         x = BatchNormalization()(x)
         x = ReLU()(x)
         x = Dropout(0.5)(x)
         
         x = Dense(32, use_bias=False, kernel_regularizer=reg)(x)
-#         x = BatchNormalization()(x)
         x = ReLU()(x)
-#         x = Dropout(0.5)(x)
+        x = Dropout(0.5)(x)
         
         outputs = Dense(2, activation="linear")(x)
         
@@ -137,7 +137,9 @@ class CNN_trainer:
         """
         Inject Gaussian noise: x' = x + noise
         """
-        noise = np.random.normal(loc=0.0, scale=0.03, size=x.shape) 
+        if self.aug_noise_std <= 0.0:
+            return x
+        noise = np.random.normal(loc=0.0, scale=self.aug_noise_std, size=x.shape)
         x_aug = x + noise
 
         return x_aug
@@ -149,7 +151,7 @@ class CNN_trainer:
             # Forward pass
             predictions = self.model(x, training=True)
             
-            # Compute cross-entropy loss
+            # Compute cross-entropy loss (MSE)
             loss_fn = tf.keras.losses.MeanSquaredError()
             loss = loss_fn(y, predictions)
             loss = tf.reduce_mean(loss)
@@ -169,7 +171,7 @@ class CNN_trainer:
         return loss
     
     # Train for one complete epoch
-    def train_epoch(self, epoch):
+    def train_epoch(self):
         self.train_loss.reset_states()
         self.train_mae.reset_states()
         
@@ -229,7 +231,8 @@ class CNN_trainer:
     
     # Update learning rate using cosine annealing schedule
     def update_learning_rate(self, epoch):        
-        cosine_decay = 0.5 * (1 + np.cos(np.pi * epoch / self.epochs))
+        denom = max(1, self.epochs - 1)
+        cosine_decay = 0.5 * (1 + np.cos(np.pi * epoch / denom))
         new_lr = self.initial_lr * cosine_decay
         self.optimizer.learning_rate.assign(new_lr)
         print(f"Learning rate: {new_lr:.6f}")
@@ -243,9 +246,8 @@ class CNN_trainer:
         # Normalize validation data
         X_v_normalized = self.X_v.astype(np.float32) 
         
-        # Store the best validation accuracy for early stopping
-#         best_val_accuracy = 0.0
-        best_val_accuracy = float('inf')
+        # Store the best validation MAE for early stopping
+        best_val_mae = float('inf')
         # Define counter for consecutive epochs without improvement
         patience_counter = 0
         
@@ -254,17 +256,17 @@ class CNN_trainer:
             self.train_epoch(epoch)
             
             # Validate
-            val_loss, val_accuracy = self.validate(X_v_normalized)
-            print(f" - val_loss: {val_loss:.4f} - val_accuracy: {val_accuracy:.4f}")
+            val_loss, val_mae = self.validate(X_v_normalized)
+            print(f" - val_loss: {val_loss:.4f} - val_MAE: {val_mae:.4f}")
             
             # Update learning rate
             self.update_learning_rate(epoch)
             
-            # Update the best validation accuracy and reset patience (if applicable)
-            if val_accuracy < best_val_accuracy:
-                best_val_accuracy = val_accuracy
+            # Update the best validation MAE and reset patience (if applicable)
+            if val_mae < best_val_mae:
+                best_val_mae = val_mae
                 patience_counter = 0
-                print(f"Validation accuracy improved to {val_accuracy:4f}")
+                print(f"Validation MAE improved to {val_mae:.4f}")
                 self.model.save_weights('best_model_weights.h5')
                 print(f"Updated the best model")
             # Allow up to 5 consecutive non-improving epochs before stopping
@@ -276,4 +278,4 @@ class CNN_trainer:
                     self.model.load_weights('best_model_weights.h5')
                     break
                 
-        print(f"\nTraining complete (Best validation accuracy: {best_val_accuracy:.4f})")
+        print(f"\nTraining complete (Best validation MAE: {best_val_mae:.4f})")
