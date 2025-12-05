@@ -253,7 +253,7 @@ class CNN_trainer:
         
         for epoch in range(self.epochs):
             print(f"\nTraining Epoch {epoch + 1}/{self.epochs}")
-            self.train_epoch(epoch)
+            self.train_epoch()
             
             # Validate
             val_loss, val_mae = self.validate(X_v_normalized)
