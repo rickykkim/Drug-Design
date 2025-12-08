@@ -91,11 +91,11 @@ class LSTM_trainer:
         #Dense layers
         x = Dense(64, use_bias=False, kernel_regularizer=reg)(x)
         x = ReLU()(x)
-        x = Dropout(0.5)(x)
+        x = Dropout(0.2)(x)
 
         x = Dense(32, use_bias=False, kernel_regularizer=reg)(x)
         x = ReLU()(x)
-        x = Dropout(0.5)(x)
+#         x = Dropout(0.2)(x)
 
         outputs = Dense(2, activation="linear")(x)
 
@@ -217,6 +217,7 @@ class LSTM_trainer:
         self.init_model()
         self.init_optimizer()
         self.init_metrics()
+        self.history = {"loss": [], "val_loss": [], "mae": [], "val_mae": []}
         
         # Normalize validation data
         X_v_normalized = self.X_v.astype(np.float32)
@@ -232,6 +233,12 @@ class LSTM_trainer:
             # Validate
             val_loss, val_mae = self.validate(X_v_normalized)
             print(f" - val_loss: {val_loss:.4f} - val_MAE: {val_mae:.4f}")
+            
+            # Store metrics in history
+            self.history["loss"].append(self.train_loss.result().numpy())
+            self.history["val_loss"].append(val_loss)
+            self.history["mae"].append(self.train_mae.result().numpy())
+            self.history["val_mae"].append(val_mae)
 
             # Update learning rate
             self.update_learning_rate(epoch)

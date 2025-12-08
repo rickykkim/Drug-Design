@@ -55,73 +55,40 @@ class CNN_trainer:
     # Initialize model
     def init_model(self):
         """
-        Model architecture for 1D multivariate time-series:
-            1. Referred to the classic LeNet structure for the overall workflow
-            2. Used 4 convolutional blocks with BatchNorm and Dropout
-            3. Doubled filter counts across blocks to enable hiearchical feature learning
-            4. Added L2 regularization to penalize large weights and prevent overfitting
-            5. Removed bias terms in Conv1D/Dense layers since BN includes a bias term
-            6. Applied MaxPooling to capture strongest temporal feature activations
+        Plain CNN architecture:
+          Conv1D → BN → ReLU → Dropout
+          Conv1D → BN → ReLU → Dropout
+          GAP → Dense layers → Output
         """
         reg = regularizers.l2(self.l2)
-        
+
         inputs = Input(shape=self.X_t.shape[1:])
         x = inputs
-        
-        # Block 1: 32 filters (initial feature extraction)
+
+        # Block 1
         x = Conv1D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = Conv1D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
-        x = ReLU()(x)
-        x = MaxPooling1D(2)(x)
-        x = Dropout(0.3)(x)
-        
-        # Block 2: 64 filters (mid-level features)
+        x = Dropout(0.1)(x)
+
+        # Block 2
         x = Conv1D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
         x = BatchNormalization()(x)
         x = ReLU()(x)
-        x = Conv1D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
-        x = ReLU()(x)
-        x = MaxPooling1D(2)(x)
-        x = Dropout(0.3)(x)
-        
-        # Block 3: 128 filters (high-level features)
-        # x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        # x = BatchNormalization()(x)
-        # x = ReLU()(x)
-        # x = Conv1D(128, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        # x = BatchNormalization()(x)
-        # x = ReLU()(x)
-        # x = MaxPooling1D(2)(x)
-        # x = Dropout(0.3)(x)
-        
-        # Block 4: 256 filters (object-level features)
-        # x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        # x = BatchNormalization()(x)
-        # x = ReLU()(x)
-        # x = Conv1D(256, 3, padding="same", use_bias=False, kernel_regularizer=reg)(x)
-        # x = BatchNormalization()(x)
-        # x = ReLU()(x)
-        # x = MaxPooling1D(2)(x)
-        # x = Dropout(0.3)(x)
-        
-        # Dense layers: global pooling reduces sequence length to a compact representation
+        x = Dropout(0.1)(x)
+
+        # Global pooling
         x = GlobalAveragePooling1D()(x)
-        
-        x = Dense(64, use_bias=False, kernel_regularizer=reg)(x)
-        x = ReLU()(x)
-        x = Dropout(0.5)(x)
-        
-        x = Dense(32, use_bias=False, kernel_regularizer=reg)(x)
-        x = ReLU()(x)
-        x = Dropout(0.5)(x)
-        
+
+        # Dense head
+        x = Dense(64, activation="relu", kernel_regularizer=reg)(x)
+        x = Dropout(0.2)(x)
+
+        x = Dense(32, activation="relu", kernel_regularizer=reg)(x)
+
         outputs = Dense(2, activation="linear")(x)
-        
-        self.model = Model(inputs=inputs, outputs=outputs)
+
+        self.model = Model(inputs, outputs)
     
     # Initialize optimizer
     def init_optimizer(self):
@@ -242,6 +209,7 @@ class CNN_trainer:
         self.init_model()
         self.init_optimizer()
         self.init_metrics()
+        self.history = {"loss": [], "val_loss": [], "mae": [], "val_mae": []}
         
         # Normalize validation data
         X_v_normalized = self.X_v.astype(np.float32) 
@@ -259,23 +227,34 @@ class CNN_trainer:
             val_loss, val_mae = self.validate(X_v_normalized)
             print(f" - val_loss: {val_loss:.4f} - val_MAE: {val_mae:.4f}")
             
+            # Store metrics in history
+            self.history["loss"].append(self.train_loss.result().numpy())
+            self.history["val_loss"].append(val_loss)
+            self.history["mae"].append(self.train_mae.result().numpy())
+            self.history["val_mae"].append(val_mae)
+            
             # Update learning rate
             self.update_learning_rate(epoch)
-            
-            # Update the best validation MAE and reset patience (if applicable)
+                    
+            # Inside the training loop
             if val_mae < best_val_mae:
                 best_val_mae = val_mae
                 patience_counter = 0
                 print(f"Validation MAE improved to {val_mae:.4f}")
+
+                # Save the best model weights
                 self.model.save_weights('best_model_weights.h5')
-                print(f"Updated the best model")
-            # Allow up to 5 consecutive non-improving epochs before stopping
+                print("Saved best model weights to 'best_model_weights.h5'")
             else:
                 patience_counter += 1
                 print(f"No improvement (patience: {patience_counter}/5)")
+
                 if patience_counter >= 5:
                     print("Early stopping triggered")
+                    # Load the previously saved best model weights
                     self.model.load_weights('best_model_weights.h5')
+                    print("Loaded best model weights from 'best_model_weights.h5'")
                     break
+
                 
-        print(f"\nTraining complete (Best validation MAE: {best_val_mae:.4f})")
+        print(f"\nCNN training complete. Best validation MAE: {best_val_mae:.4f})")
