@@ -1,0 +1,174 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
+#!/usr/bin/env python3
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import Model, regularizers
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, MaxPooling1D, Dropout, LSTM, Dense, ReLU, GlobalAveragePooling1D
+
+# Enable dynamic GPU memory allocation
+try:
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+except Exception:
+    pass  # Continue with CPU if no GPU is available
+
+
+class CNN_LSTM_trainer:
+    def __init__(self, X_t, y_t, X_v, y_v, epochs=100, batch_size=128, lr=1e-3, l2=1e-5, dropout=0.2):
+        self.X_t = X_t
+        self.y_t = y_t
+        self.X_v = X_v
+        self.y_v = y_v
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.lr = lr
+        self.initial_lr = lr
+        self.l2 = l2
+        self.dropout = dropout
+        std = float(np.std(self.X_t))
+        self.aug_noise_std = 0.05 * std if std > 0 else 0.0
+
+    def init_model(self):
+        reg = regularizers.l2(self.l2)
+        inputs = Input(shape=self.X_t.shape[1:])
+        x = inputs
+        
+        # Block 1
+        x = Conv1D(32, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Dropout(0.1)(x)
+        
+        # Block 2
+        x = Conv1D(64, 5, padding="same", use_bias=False, kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        x = ReLU()(x)
+        x = Dropout(0.1)(x)
+        
+        # LSTM
+        x = Bidirectional(LSTM(64, return_sequences=False, kernel_regularizer=reg, recurrent_regularizer=reg,
+        dropout=self.dropout, recurrent_dropout=0.0))(x)
+        
+        # Dense head
+        x = Dense(64, use_bias=False, kernel_regularizer=reg)(x)
+        x = ReLU()(x)
+        x = Dropout(0.2)(x)
+
+        x = Dense(32, use_bias=False, kernel_regularizer=reg)(x)
+        x = ReLU()(x)
+
+        outputs = Dense(2, activation="linear")(x)
+
+        self.model = Model(inputs=inputs, outputs=outputs)
+        
+        
+    def init_optimizer(self):
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+
+    def init_metrics(self):
+        self.train_loss = tf.keras.metrics.Mean()
+        self.train_mae = tf.keras.metrics.MeanAbsoluteError()
+
+    def augment_data(self, x):
+        if self.aug_noise_std <= 0.0:
+            return x
+        noise = np.random.normal(0, self.aug_noise_std, x.shape)
+        return x + noise
+
+    @tf.function
+    def train_step(self, x, y):
+        with tf.GradientTape() as tape:
+            pred = self.model(x, training=True)
+            loss = tf.reduce_mean(tf.keras.losses.MSE(y, pred))
+            if self.model.losses:
+                loss += tf.add_n(self.model.losses)
+        grads = tape.gradient(loss, self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+        self.train_loss.update_state(loss)
+        self.train_mae.update_state(y, pred)
+
+    def train_epoch(self):
+        self.train_loss.reset_states()
+        self.train_mae.reset_states()
+        idx = np.random.permutation(len(self.X_t))
+        num_batches = (len(self.X_t) + self.batch_size - 1) // self.batch_size
+
+        for i in range(num_batches):
+            batch_idx = idx[i*self.batch_size:(i+1)*self.batch_size]
+            x_batch = np.array([self.augment_data(seq) for seq in self.X_t[batch_idx].astype(np.float32)])
+            y_batch = self.y_t[batch_idx]
+            self.train_step(x_batch, y_batch)
+            # Print batch progress
+            print(f"\r{i+1}/{num_batches} - loss: {self.train_loss.result():.4f} "
+                  f"- MAE: {self.train_mae.result():.4f}", end="", flush=True)
+        print()  # Newline after epoch
+
+    def validate(self):
+        val_loss = tf.keras.metrics.Mean()
+        val_mae = tf.keras.metrics.MeanAbsoluteError()
+        num_batches = (len(self.X_v) + self.batch_size - 1) // self.batch_size
+
+        for i in range(num_batches):
+            start_idx = i * self.batch_size
+            end_idx = min(start_idx + self.batch_size, len(self.X_v))
+            x_batch = self.X_v[start_idx:end_idx].astype(np.float32)
+            y_batch = self.y_v[start_idx:end_idx]
+            pred = self.model(x_batch, training=False)
+            loss = tf.reduce_mean(tf.keras.losses.MSE(y_batch, pred))
+            val_loss.update_state(loss)
+            val_mae.update_state(y_batch, pred)
+
+        return val_loss.result().numpy(), val_mae.result().numpy()
+
+    def update_lr(self, epoch):
+        cosine_decay = 0.5 * (1 + np.cos(np.pi * epoch / max(1, self.epochs - 1)))
+        new_lr = self.initial_lr * cosine_decay
+        self.optimizer.learning_rate.assign(new_lr)
+        print(f"Learning rate: {new_lr:.6f}")
+
+    def run(self):
+        self.init_model()
+        self.init_optimizer()
+        self.init_metrics()
+        self.history = {"loss": [], "val_loss": [], "mae": [], "val_mae": []}
+        
+        best_mae = float('inf')
+        patience_counter = 0
+                    
+        for epoch in range(self.epochs):
+            print(f"\nTraining Epoch {epoch+1}/{self.epochs}")
+            self.train_epoch()
+            val_loss, val_mae = self.validate()
+            print(f" - val_loss: {val_loss:.4f} - val_MAE: {val_mae:.4f}")
+            
+            # Store metrics in history
+            self.history["loss"].append(self.train_loss.result().numpy())
+            self.history["val_loss"].append(val_loss)
+            self.history["mae"].append(self.train_mae.result().numpy())
+            self.history["val_mae"].append(val_mae)
+        
+            # Update learning rate
+            self.update_lr(epoch)
+
+            if val_mae < best_mae:
+                best_mae = val_mae
+                patience_counter = 0
+                print(f"Validation MAE improved to {val_mae:.4f}")
+                self.model.save_weights('model/best_cnn_lstm_model_weights.h5')
+                print("Updated the best CNN+LSTM model")
+            else:
+                patience_counter += 1
+                print(f"No improvement (patience: {patience_counter}/5)")
+                if patience_counter >= 5:
+                    print("Early stopping triggered")
+                    self.model.load_weights('model/best_cnn_lstm_model_weights.h5')
+                    break
+
+        print(f"\nCNN+LSTM training complete. Best validation MAE: {best_mae:.4f})")
+

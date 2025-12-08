@@ -10,13 +10,13 @@ import tensorflow as tf
 from tensorflow.keras import Model, regularizers
 from tensorflow.keras.layers import Input, LSTM, Bidirectional, Dense, Dropout, ReLU
 
-# Enable dynamic GPU memory allocation
+#Enable dynamic GPU memory allocation
 try:
     gpus = tf.config.experimental.list_physical_devices('GPU')
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 except Exception:
-    pass # Continue with CPU if no GPU is available
+    pass    #Continue with CPU if no GPU is available
 
 
 class LSTM_trainer:
@@ -42,9 +42,8 @@ class LSTM_trainer:
       y_v: validation targets, shape (N_val, 2)
       
     References:
-        1. https://www.geeksforgeeks.org/nlp/explanation-of-bert-model-nlp/
-        2. https://www.tensorflow.org/api_docs/python/tf/keras/layers/Bidirectional
-        3. https://medium.com/data-science-data-engineering/time-series-prediction-lstm-bi-lstm-gru-99334fc16d75
+        1. https://www.tensorflow.org/api_docs/python/tf/keras/layers/Bidirectional
+        2. https://medium.com/data-science-data-engineering/time-series-prediction-lstm-bi-lstm-gru-99334fc16d75
     """
     def __init__(self, X_t, y_t, X_v, y_v, epochs=100, batch_size=128, lr=5e-4, l2=1e-5, dropout=0.3):
         #Store data
@@ -91,11 +90,11 @@ class LSTM_trainer:
         #Dense layers
         x = Dense(64, use_bias=False, kernel_regularizer=reg)(x)
         x = ReLU()(x)
-        x = Dropout(0.2)(x)
+        x = Dropout(0.5)(x)
 
         x = Dense(32, use_bias=False, kernel_regularizer=reg)(x)
         x = ReLU()(x)
-#         x = Dropout(0.2)(x)
+        x = Dropout(0.5)(x)
 
         outputs = Dense(2, activation="linear")(x)
 
@@ -109,7 +108,7 @@ class LSTM_trainer:
         self.train_loss = tf.keras.metrics.Mean()
         self.train_mae = tf.keras.metrics.MeanAbsoluteError()
 
-    #Data augmentation. Here we add Gaussian noise to the time-series data
+    #Data augmentation. Here we add Gaussian noise to the time-series data.
     def augment_data(self, x):
         if self.aug_noise_std <= 0.0:
             return x
@@ -217,7 +216,6 @@ class LSTM_trainer:
         self.init_model()
         self.init_optimizer()
         self.init_metrics()
-        self.history = {"loss": [], "val_loss": [], "mae": [], "val_mae": []}
         
         # Normalize validation data
         X_v_normalized = self.X_v.astype(np.float32)
@@ -233,12 +231,6 @@ class LSTM_trainer:
             # Validate
             val_loss, val_mae = self.validate(X_v_normalized)
             print(f" - val_loss: {val_loss:.4f} - val_MAE: {val_mae:.4f}")
-            
-            # Store metrics in history
-            self.history["loss"].append(self.train_loss.result().numpy())
-            self.history["val_loss"].append(val_loss)
-            self.history["mae"].append(self.train_mae.result().numpy())
-            self.history["val_mae"].append(val_mae)
 
             # Update learning rate
             self.update_learning_rate(epoch)
