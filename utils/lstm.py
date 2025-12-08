@@ -248,7 +248,7 @@ class LSTM_trainer:
                 best_val_mae = val_mae
                 patience_counter = 0
                 print(f"Validation MAE improved to {val_mae:.4f}")
-                self.model.save_weights('best_lstm_model_weights.h5')
+                self.model.save_weights('model/best_lstm_model_weights.h5')
                 print("Updated the best LSTM model")
             # Allow up to 5 consecutive non-improving epochs before stopping
             else:
@@ -256,7 +256,7 @@ class LSTM_trainer:
                 print(f"No improvement (patience: {patience_counter}/5)")
                 if patience_counter >= 5:
                     print("Early stopping triggered")
-                    self.model.load_weights('best_lstm_model_weights.h5')
+                    self.model.load_weights('model/best_lstm_model_weights.h5')
                     break
 
         print(f"\nLSTM training complete (Best validation MAE: {best_val_mae:.4f})")

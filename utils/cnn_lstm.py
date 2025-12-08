@@ -150,14 +150,14 @@ class CNN_LSTM_trainer:
                 best_mae = val_mae
                 patience_counter = 0
                 print(f"Validation MAE improved to {val_mae:.4f}")
-                self.model.save_weights('best_cnn_lstm_model_weights.h5')
+                self.model.save_weights('model/best_cnn_lstm_model_weights.h5')
                 print("Updated the best CNN+LSTM model")
             else:
                 patience_counter += 1
                 print(f"No improvement (patience: {patience_counter}/5)")
                 if patience_counter >= 5:
                     print("Early stopping triggered")
-                    self.model.load_weights('best_cnn_lstm_model_weights.h5')
+                    self.model.load_weights('model/best_cnn_lstm_model_weights.h5')
                     break
 
         print(f"\nCNN+LSTM training complete. Best validation MAE: {best_mae:.4f})")
