@@ -1,14 +1,14 @@
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/WG_g337P)
 # E4040 2025 Fall Project
 ## Predictive Modeling for Computational Drug Design
-Project description:
+**Project Description**:
 We develop predictive models for two key quality metrics in tablet manufacturing: total waste and total impurities. Our study evaluates both traditional machine learning (ML) and modern deep learning (DL) approaches. On the DL side, we investigate three architectures—a 1D convolutional neural network (CNN), a bidirectional long short-term memory network (BiLSTM), and a CNN–BiLSTM hybrid—all trained directly on raw multivariate time-series data, enabling the networks to learn process-relevant temporal patterns without manual feature design. In parallel, we benchmark these models against traditional ML methods trained on post-processed, manually engineered features extracted from the same time-series signals. Among these models, XGBoost and Random Forest achieved the strongest performance. Our results highlight that effective deep learning architectures can eliminate the need for extensive feature engineering while simultaneously demonstrating effective predictive accuracy for critical manufacturing outcomes.
 
+## Project Instructions
 Repository for E4040 2025 Fall Project
   - Distributed as Github repository and shared via Github Classroom
   - Contains only `README.md` file
 
-## Project Instructions
 Please read the project instructions carefully. In particular, pay extra attention to the following sections in the project instructions:
  - [Obligatory Github project updates](https://docs.google.com/document/d/1DbWKjFzJg8_-KNG4YRsV-8WdLUgiiGfqTqjwm6-6Hcg/edit?tab=t.0#bookmark=id.8ga1w2quwf7y)
  - [Student Contributions to the Project](https://docs.google.com/document/d/1DbWKjFzJg8_-KNG4YRsV-8WdLUgiiGfqTqjwm6-6Hcg/edit?tab=t.0#bookmark=id.3jlnclcqaru7)
