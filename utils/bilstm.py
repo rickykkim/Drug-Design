@@ -19,7 +19,7 @@ except Exception:
     pass    #Continue with CPU if no GPU is available
 
 
-class LSTM_trainer:
+class BILSTM_trainer:
     """
     Pure LSTM trainer for multivariate time series regression. We implement a bidirectional lstm to allow
     the time-series data to learn from both past and future context. Ideally this allows for our RNN to learn

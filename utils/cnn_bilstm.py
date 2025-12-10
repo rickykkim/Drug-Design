@@ -19,7 +19,21 @@ except Exception:
     pass  # Continue with CPU if no GPU is available
 
 
-class CNN_LSTM_trainer:
+class CNN_BILSTM_trainer:
+    """
+    CNN + BiLSTM trainer for multivariate time series regression. We first apply 1D convolutions to extract 
+    local temporal patterns patterns (short-term spikes in speed, force, or fill), and then use a bidirectional 
+    LSTM to allow the model to learn longer-range temporal dependencies from both past and future context. This 
+    lets the network relate early anomalies to later events. For example, early instability in press 
+    speed followed by later zero-speed clogging leading to higher total waste are both correlated events that
+    can be understood by a bidirectional LSTM.
+
+    Inputs:
+      X_t: training time series, shape (N_train, T, F)
+      y_t: training targets, shape (N_train, 2) -> [total_waste, Total impurities]
+      X_v: validation time series, shape (N_val, T, F)
+      y_v: validation targets, shape (N_val, 2)
+    """
     def __init__(self, X_t, y_t, X_v, y_v, epochs=100, batch_size=128, lr=1e-3, l2=1e-5, dropout=0.2):
         self.X_t = X_t
         self.y_t = y_t
