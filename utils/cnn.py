@@ -248,8 +248,8 @@ class CNN_trainer:
                 print(f"Validation MAE improved to {val_mae:.4f}")
 
                 # Save the best model weights
-                self.model.save_weights('model/best_model_weights.h5')
-                print("Saved best model weights to 'best_model_weights.h5'")
+                self.model.save_weights('model/best_cnn_model_weights.h5')
+                print("Saved best model weights to 'best_cnn_model_weights.h5'")
             else:
                 patience_counter += 1
                 print(f"No improvement (patience: {patience_counter}/5)")
@@ -257,8 +257,8 @@ class CNN_trainer:
                 if patience_counter >= 5:
                     print("Early stopping triggered")
                     # Load the previously saved best model weights
-                    self.model.load_weights('model/best_model_weights.h5')
-                    print("Loaded best model weights from 'best_model_weights.h5'")
+                    self.model.load_weights('model/best_cnn_model_weights.h5')
+                    print("Loaded best model weights from 'best_cnn_model_weights.h5'")
                     break
 
                 

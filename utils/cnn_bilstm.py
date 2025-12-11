@@ -11,7 +11,7 @@ EXCEPT for the learning rate schedule implementation (Lines 205-210), which is a
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model, regularizers
-from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, MaxPooling1D, Dropout, LSTM, Dense, ReLU, GlobalAveragePooling1D
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, MaxPooling1D, Dropout, LSTM, Dense, ReLU, GlobalAveragePooling1D, Bidirectional
 
 # Enable dynamic GPU memory allocation
 try:
@@ -177,14 +177,14 @@ class CNN_BILSTM_trainer:
                 best_mae = val_mae
                 patience_counter = 0
                 print(f"Validation MAE improved to {val_mae:.4f}")
-                self.model.save_weights('model/best_cnn_lstm_model_weights.h5')
-                print("Updated the best CNN+LSTM model")
+                self.model.save_weights('model/best_cnn_bilstm_model_weights.h5')
+                print("Updated the best CNN+BiLSTM model")
             else:
                 patience_counter += 1
                 print(f"No improvement (patience: {patience_counter}/5)")
                 if patience_counter >= 5:
                     print("Early stopping triggered")
-                    self.model.load_weights('model/best_cnn_lstm_model_weights.h5')
+                    self.model.load_weights('model/best_cnn_bilstm_model_weights.h5')
                     break
 
         print(f"\nCNN+LSTM training complete. Best validation MAE: {best_mae:.4f})")
