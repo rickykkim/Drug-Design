@@ -123,7 +123,7 @@ class CNN_trainer:
             # Forward pass
             predictions = self.model(x, training=True)
             
-            # Compute cross-entropy loss (MSE)
+            # Compute MSE loss for regression
             loss_fn = tf.keras.losses.MeanSquaredError()
             loss = loss_fn(y, predictions)
             loss = tf.reduce_mean(loss)
