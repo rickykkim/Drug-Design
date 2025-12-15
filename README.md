@@ -40,5 +40,67 @@ To be populated by students, as shown in previous assignments.
 
 TODO: Create a directory/file tree
 ```
-
+e4040-2025Fall-Project-HAHA-kk3764-fnz2101-td2849
+├── data
+│   ├── Normalization.csv
+│   ├── Process.csv
+│   └── Time-Series
+│       ├── 1.csv
+│       ├── 2.csv
+│       ├── 3.csv
+│       ├── 4.csv
+│       ├── 5.csv
+│       ├── 6.csv
+│       ├── 7.csv
+│       ├── 8.csv
+│       ├── 9.csv
+│       ├── 10.csv
+│       ├── 11.csv
+│       ├── 12.csv
+│       ├── 13.csv
+│       ├── 14.csv
+│       ├── 15.csv
+│       ├── 16.csv
+│       ├── 17.csv
+│       ├── 18.csv
+│       ├── 19.csv
+│       ├── 20.csv
+│       ├── 21.csv
+│       ├── 22.csv
+│       ├── 23.csv
+│       ├── 24.csv
+│       └── 25.csv
+├── figures
+│   ├── kk3764-fnz2101-td2849_gcp_work_example_screenshot_1.png
+│   ├── kk3764-fnz2101-td2849_gcp_work_example_screenshot_2.png
+│   └── kk3764-fnz2101-td2849_gcp_work_example_screenshot_3.png
+├── model
+│   ├── best_bilstm_model
+│   │   ├── saved_model.pb
+│   │   └── variables
+│   │       ├── variables.data-00000-of-00001
+│   │       └── variables.index
+│   ├── best_bilstm_model_weights.h5
+│   ├── best_cnn_bilstm_model
+│   │   ├── saved_model.pb
+│   │   └── variables
+│   │       ├── variables.data-00000-of-00001
+│   │       └── variables.index
+│   ├── best_cnn_bilstm_model_weights.h5
+│   ├── best_cnn_model
+│   │   ├── saved_model.pb
+│   │   └── variables
+│   │       ├── variables.data-00000-of-00001
+│   │       └── variables.index
+│   └── best_cnn_model_weights.h5
+├── utils
+│   ├── bilstm.py
+│   ├── cnn.py
+│   ├── cnn_bilstm.py
+│   ├── cnn_lstm.py
+│   └── nonlinear.py
+├── DL_model.ipynb
+├── ML_model_v1.ipynb
+├── ML_model_v2.ipynb
+└── README.md
 ```
