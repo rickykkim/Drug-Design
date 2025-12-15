@@ -83,10 +83,10 @@ Main notebook for deep learning model development and evaluation.
 
 ## How to Run the Code
 
-1. Traditional ML Models (most updated version): jupyter notebook ML_model_v2.ipynb
-2. DL models: jupyter notebook DL_model.ipynb
+1. **Traditional ML Models (most updated version)**: jupyter notebook ML_model_v2.ipynb
+2. **DL models**: jupyter notebook DL_model.ipynb
 
-NOTE: The utility modules in utils/ are not meant to be run standalone. They are imported and used within the Jupyter notebooks.
+**NOTE**: utils/ is not meant to be run standalone. All modules are imported and used within the Jupyter notebooks.
 
 ## Project Instructions
 Repository for E4040 2025 Fall Project
