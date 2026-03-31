@@ -5,9 +5,7 @@ We develop predictive models for two key quality metrics in tablet manufacturing
 
 ## Dataset
 
-The project uses pharmaceutical manufacturing data provided by [Žagar & Mihelič, 2022](https://figshare.com/collections/Cholessterol-Lowering_Drug_Process_and_Quality_Data/5645578):
-
-### Data Structure
+The project uses pharmaceutical manufacturing data provided by [Žagar and Mihelič (2022)](https://figshare.com/collections/Cholessterol-Lowering_Drug_Process_and_Quality_Data/5645578):
 - **`data/Normalization.csv`**: Contains product-code-specific normalization factors used to scale selected process and sensor variables prior to modeling.
 - **`data/Process.csv`**: Batch-level process metadata and target variables (total waste and total impurities), providing supervised labels for ML prediction tasks.
 - **`data/Time-Series/`**: Directory containing 25 CSV files (1.csv - 25.csv), each corresponding to a product code and containing multivariate time-series measurements (10-second resolution) for multiple manufacturing batches. These time series capturing real-time process serve as inputs to the CNN model after batch-wise grouping and preprocessing.
@@ -85,11 +83,11 @@ Main notebook for deep learning model development and evaluation.
 1. **Traditional ML Models (most updated version)**: jupyter notebook ML_model_v2.ipynb
 2. **DL models**: jupyter notebook DL_model.ipynb
 
-**NOTE**: utils/ is not meant to be run standalone. All modules are imported and used within the Jupyter notebooks.
+**NOTE**: `utils/` is not meant to be run standalone. All modules are imported and used within the Jupyter notebooks.
 
 # Organization of this directory
 ```
-e4040-2025Fall-Project-HAHA-kk3764-fnz2101-td2849
+Drug-Design
 ├── data
 │   ├── Normalization.csv
 │   ├── Process.csv
@@ -119,10 +117,6 @@ e4040-2025Fall-Project-HAHA-kk3764-fnz2101-td2849
 │       ├── 23.csv
 │       ├── 24.csv
 │       └── 25.csv
-├── figures
-│   ├── kk3764-fnz2101-td2849_gcp_work_example_screenshot_1.png
-│   ├── kk3764-fnz2101-td2849_gcp_work_example_screenshot_2.png
-│   └── kk3764-fnz2101-td2849_gcp_work_example_screenshot_3.png
 ├── model
 │   ├── best_bilstm_model
 │   │   ├── saved_model.pb
@@ -149,7 +143,7 @@ e4040-2025Fall-Project-HAHA-kk3764-fnz2101-td2849
 │   ├── cnn_lstm.py
 │   └── nonlinear.py
 ├── DL_model.ipynb
-├── E4040.2025Fall.HAHA.report.kk3764.fnz2101.td2849.pdf
+├── Project_Report.pdf
 ├── ML_model_v1.ipynb
 ├── ML_model_v2.ipynb
 ├── README.md
